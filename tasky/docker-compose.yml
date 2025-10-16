@@ -1,0 +1,64 @@
+
+
+services:
+  db:
+    image: postgres:15
+    container_name: tasky-db-1
+    environment:
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=app
+      - POSTGRES_DB=facturas
+    volumes:
+      - tasky_postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+
+  ocr_ia:
+    image: tasky-ocr_ia
+    container_name: tasky-ocr_ia-1
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_URL=postgresql://app:app@db:5432/facturas
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  telegram_bot:
+    image: tasky-telegram_bot
+    container_name: tasky-telegram_bot-1
+    environment:
+      - TELEGRAM_TOKEN=8438180645:AAEUDXTIXJBOOoHlBgeUmi4p1ZMmRp9YBgU
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/telegram_in
+      - DB_URL=postgresql://app:app@db:5432/facturas
+    depends_on:
+      - n8n
+      - db
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: tasky-n8n-1
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=facturas
+      - DB_POSTGRESDB_USER=app
+      - DB_POSTGRESDB_PASSWORD=app
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - GENERIC_TIMEZONE=America/Argentina/Buenos_Aires
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+    volumes:
+      - tasky_n8n_data:/home/node/.n8n
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  tasky_n8n_data:
+  tasky_postgres_data:
